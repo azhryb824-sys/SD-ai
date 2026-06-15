@@ -1,4 +1,5 @@
 import hashlib
+import os
 import subprocess
 import threading
 from pathlib import Path
@@ -22,6 +23,7 @@ from inference.voice import (
 )
 
 app = FastAPI(title="المساعد السوداني")
+CLOUD_DEPLOYMENT = bool(os.getenv("RENDER"))
 VOICE_SAMPLE_PATH = (
     Path(__file__).resolve().parent
     / "voice_samples"
@@ -39,6 +41,8 @@ FAST_SPEECH_LOCK = threading.Lock()
 
 @app.on_event("startup")
 def start_voice_warmup():
+    if CLOUD_DEPLOYMENT:
+        return
     threading.Thread(
         target=warm_voice_engine,
         name="voice-engine-warmup",
@@ -67,7 +71,7 @@ class SpeechRequest(BaseModel):
 
 @app.get("/", response_class=HTMLResponse)
 def home():
-    return """
+    page = """
 <!doctype html>
 <html lang="ar" dir="rtl">
 <head>
@@ -338,6 +342,12 @@ def home():
       cursor: pointer;
     }
     .learning-consent input { width: 16px; height: 16px; accent-color: var(--green); }
+    .cloud-deployment #direct-toggle,
+    .cloud-deployment #voice-test-sudanese,
+    .cloud-deployment #microphone,
+    .cloud-deployment .welcome-tags span:last-child {
+      display: none;
+    }
     #chat {
       flex: 1;
       min-height: 0;
@@ -583,7 +593,7 @@ def home():
     }
   </style>
 </head>
-<body>
+<body class="__DEPLOYMENT_CLASS__">
   <div class="page">
     <aside>
       <div class="mark">س</div>
@@ -1145,6 +1155,19 @@ def home():
 </body>
 </html>
 """
+    return page.replace(
+        "__DEPLOYMENT_CLASS__",
+        "cloud-deployment" if CLOUD_DEPLOYMENT else "",
+    )
+
+
+@app.get("/health")
+def health():
+    return {
+        "status": "ok",
+        "service": "sd-ai",
+        "voice_mode": "local" if not CLOUD_DEPLOYMENT else "disabled-on-cloud",
+    }
 
 
 @app.post("/chat")
@@ -1216,6 +1239,8 @@ def instant_speech_path(text):
 
 
 def generate_instant_speech(text):
+    if CLOUD_DEPLOYMENT:
+        raise RuntimeError("Instant speech is available in the local edition.")
     output_path = instant_speech_path(text)
     if output_path.exists():
         return output_path
@@ -1223,6 +1248,11 @@ def generate_instant_speech(text):
     with FAST_SPEECH_LOCK:
         if output_path.exists():
             return output_path
+        creation_flags = (
+            subprocess.CREATE_NO_WINDOW
+            if os.name == "nt"
+            else 0
+        )
         subprocess.run(
             [
                 str(EDGE_TTS_PATH),
@@ -1235,7 +1265,7 @@ def generate_instant_speech(text):
             ],
             check=True,
             timeout=45,
-            creationflags=subprocess.CREATE_NO_WINDOW,
+            creationflags=creation_flags,
         )
     return output_path
 

@@ -15,12 +15,9 @@ from urllib.parse import urlencode, quote
 from urllib.request import Request, urlopen
 from zoneinfo import ZoneInfo
 
-import torch
-
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from models.model import GreetingLanguageModel
 from inference.dialect import to_sudanese_text
 from inference.learning import load_learned_examples
 
@@ -412,6 +409,10 @@ def temporal_response(prompt):
 
 
 def load_model():
+    import torch
+
+    from models.model import GreetingLanguageModel
+
     checkpoint = torch.load(ROOT / "models" / "greeting_model.pt", map_location="cpu")
     config = checkpoint["config"]
     model = GreetingLanguageModel(**config)
@@ -3527,6 +3528,8 @@ def generate(
             )
             answers.append(professionalize_answer(question, answer, transition))
         return to_sudanese_text("\n\n".join(answers))
+
+    import torch
 
     model, char_to_id = load_model()
     id_to_char = {index: char for char, index in char_to_id.items()}

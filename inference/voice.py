@@ -10,7 +10,6 @@ import wave
 from pathlib import Path
 
 from num2words import num2words
-import imageio_ffmpeg
 
 from inference.dialect import to_sudanese_text
 
@@ -344,6 +343,8 @@ def stream_speech(text, style="sudanese"):
 
 
 def stream_speech_mp3(text, style="sudanese"):
+    import imageio_ffmpeg
+
     if style not in VOICE_REFERENCES:
         raise ValueError("Unsupported voice style.")
     clean_text = _clean_speech_text(text, style, 360)
