@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+venv/
+.venv/
+
+# Runtime caches and learned conversation logs
+.cache/
+data/learning/
+
+# Local voice recordings and generated audio
+*.aac
+*.wav
+*.mp3
+voice_samples/wav/
+voice_samples/generated/
+voice_samples/references/
+voice_samples/all_references/
+voice_samples/*.json
+
+# Large local model artifacts
+*.pt
+*.pth
+*.bin
+models/
+
+# Local tooling
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

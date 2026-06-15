@@ -1,0 +1,7 @@
+torch
+fastapi
+uvicorn
+imageio-ffmpeg
+coqui-tts[codec]
+transformers>=4.57,<5
+num2words>=0.5.14
