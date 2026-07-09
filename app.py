@@ -1,4 +1,6 @@
+import base64
 import hashlib
+import json
 import os
 import subprocess
 import threading
@@ -1190,6 +1192,46 @@ def health():
         "keepalive": True,
         "keepalive_interval_s": KEEPALIVE_INTERVAL,
     }
+
+
+class TrainingRequest(BaseModel):
+    audio: str = ""
+    name: str = ""
+
+
+@app.post("/training/voice")
+def training_voice(request: TrainingRequest):
+    audio_base64 = request.audio.strip()
+    name = request.name.strip() or f"sample_{int(time.time())}.wav"
+    if not audio_base64:
+        return {"ok": False, "error": "Audio data is required."}
+    try:
+        audio_bytes = base64.b64decode(audio_base64)
+    except Exception as e:
+        return {"ok": False, "error": f"Invalid base64: {e}"}
+    app_root = Path(__file__).resolve().parent
+    ref_dir = app_root / "voice_samples" / "wav"
+    ref_dir.mkdir(parents=True, exist_ok=True)
+    safe_name = "".join(c for c in name if c.isalnum() or c in "._-") or f"sample_{int(time.time())}.wav"
+    dest = ref_dir / f"user_{safe_name}"
+    dest.write_bytes(audio_bytes)
+    selection_path = app_root / "voice_samples" / "selected_references.json"
+    refs = {"references": []}
+    try:
+        refs = json.loads(selection_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        pass
+    new_ref = f"user_{safe_name}"
+    existing = list(refs.get("references", []))
+    if new_ref not in existing:
+        existing.insert(0, new_ref)
+    refs["references"] = existing[:20]
+    selection_path.write_text(json.dumps(refs, ensure_ascii=False, indent=2), encoding="utf-8")
+    cache_dir = app_root / ".cache"
+    for f in cache_dir.rglob("reply_*"):
+        try: f.unlink()
+        except: pass
+    return {"ok": True, "name": new_ref, "totalRefs": len(existing)}
 
 
 @app.post("/chat")
