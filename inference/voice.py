@@ -52,6 +52,13 @@ _generation_lock = threading.Lock()
 _conditioning_cache = {}
 _warmup_state = {"ready": False, "loading": False, "error": None}
 
+
+def reload_voice_references():
+    new_refs = selected_reference_names()
+    VOICE_REFERENCES["sudanese"] = new_refs
+    _conditioning_cache.clear()
+    return list(new_refs)
+
 ARABIC_TO_ASCII_DIGITS = str.maketrans(
     "٠١٢٣٤٥٦٧٨٩۰۱۲۳۴۵۶۷۸۹٫٬",
     "01234567890123456789.,",

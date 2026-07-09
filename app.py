@@ -1215,22 +1215,52 @@ def training_voice(request: TrainingRequest):
     safe_name = "".join(c for c in name if c.isalnum() or c in "._-") or f"sample_{int(time.time())}.wav"
     dest = ref_dir / f"user_{safe_name}"
     dest.write_bytes(audio_bytes)
+    # Convert webm/mp3/ogg to wav for Coqui TTS compatibility
+    wav_name = safe_name.rsplit(".", 1)[0] + ".wav"
+    wav_dest = ref_dir / f"user_{wav_name}"
+    if dest.suffix.lower() != ".wav" and dest != wav_dest:
+        try:
+            subprocess.run(
+                ["ffmpeg", "-y", "-i", str(dest), "-acodec", "pcm_s16le", "-ar", "22050", "-ac", "1", str(wav_dest)],
+                check=True, capture_output=True, timeout=30
+            )
+            dest.unlink(missing_ok=True)
+            dest = wav_dest
+            safe_name = f"user_{wav_name}"
+        except Exception:
+            pass
+    # Update selected_references.json
     selection_path = app_root / "voice_samples" / "selected_references.json"
     refs = {"references": []}
     try:
         refs = json.loads(selection_path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         pass
-    new_ref = f"user_{safe_name}"
+    new_ref = dest.name
     existing = list(refs.get("references", []))
     if new_ref not in existing:
         existing.insert(0, new_ref)
     refs["references"] = existing[:20]
     selection_path.write_text(json.dumps(refs, ensure_ascii=False, indent=2), encoding="utf-8")
+    # Clear cached audio
     cache_dir = app_root / ".cache"
     for f in cache_dir.rglob("reply_*"):
         try: f.unlink()
         except: pass
+    # Reload references in memory + recondition model
+    try:
+        from inference.voice import reload_voice_references, _model, _model_lock
+        reload_voice_references()
+        # Clear model speaker conditioning so it picks up new references
+        with _model_lock:
+            if _model is not None:
+                try:
+                    _model.synthesizer.tts_model.gpt_cond_latent = None
+                    _model.synthesizer.tts_model.speaker_embedding = None
+                except Exception:
+                    pass
+    except Exception:
+        pass
     return {"ok": True, "name": new_ref, "totalRefs": len(existing)}
 
 
