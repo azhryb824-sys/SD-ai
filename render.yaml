@@ -13,8 +13,3 @@ services:
         value: "1"
       - key: KEEPALIVE_INTERVAL
         value: "540"
-
-cron:
-  - name: keepalive-ping
-    schedule: "*/15 * * * *"
-    command: curl -sf -o /dev/null https://sd-ai.onrender.com/health
