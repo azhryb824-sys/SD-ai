@@ -2,6 +2,8 @@ import hashlib
 import os
 import subprocess
 import threading
+import time
+import urllib.request
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -24,6 +26,24 @@ from inference.voice import (
 
 app = FastAPI(title="المساعد السوداني")
 CLOUD_DEPLOYMENT = bool(os.getenv("RENDER"))
+
+KEEPALIVE_INTERVAL = int(os.getenv("KEEPALIVE_INTERVAL", "540"))  # 9 minutes
+
+def _keepalive_loop():
+    ext_url = os.getenv("RENDER_EXTERNAL_URL", "").rstrip("/")
+    port = os.getenv("PORT", "10000")
+    while True:
+        time.sleep(KEEPALIVE_INTERVAL)
+        try:
+            if ext_url:
+                urllib.request.urlopen(f"{ext_url}/health", timeout=15)
+            else:
+                urllib.request.urlopen(f"http://127.0.0.1:{port}/health", timeout=10)
+        except Exception:
+            pass
+
+keepalive_thread = threading.Thread(target=_keepalive_loop, daemon=True)
+keepalive_thread.start()
 VOICE_SAMPLE_PATH = (
     Path(__file__).resolve().parent
     / "voice_samples"
@@ -1167,6 +1187,8 @@ def health():
         "status": "ok",
         "service": "sd-ai",
         "voice_mode": "local" if not CLOUD_DEPLOYMENT else "disabled-on-cloud",
+        "keepalive": True,
+        "keepalive_interval_s": KEEPALIVE_INTERVAL,
     }
 
 
